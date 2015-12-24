@@ -7,28 +7,28 @@
 
 require 'rubygems'
 require 'json'
-require 'parse_tree'
-require 'parse_tree_extensions'
 require 'ruby2ruby'
 require 'net/http' # yuck
 require 'stringio'
 require 'optparse'
+require 'fileutils'
+require 'byebug'
 
 $options = {}
 opts = OptionParser.new do |opts|
   opts.banner = "Usage: convert.rb [options]"
 
-  opts.on("-c COOKBOOK", "--cookbook COOKBOOK", :REQUIRED, String, 
+  opts.on("-c COOKBOOK", "--cookbook COOKBOOK", :REQUIRED, String,
     "Chef Cookbook directory (e.g. contains /recipes, /attributes...)") do |cookbook|
       $options[:cookbook] = cookbook
   end
 
-  opts.on("-o OUTPUT_DIR", "--output-dir OUTPUT_DIR", :REQUIRED, String, 
+  opts.on("-o OUTPUT_DIR", "--output-dir OUTPUT_DIR", :REQUIRED, String,
     "Output directory (where modules are written)") do |output_dir|
       $options[:output_dir] = output_dir
   end
 
-  opts.on("-s SERVER_NAME", "--server-name SERVER_NAME", :REQUIRED, String, 
+  opts.on("-s SERVER_NAME", "--server-name SERVER_NAME", :REQUIRED, String,
     "The name of the Puppet server to be used in puppet:// URLs") do |server_name|
       $options[:server_name] = server_name
   end
@@ -371,7 +371,7 @@ class ChefInnerBlock
     else
       self[id.id2name] << ''
     end
-    
+
     # Handle at least two deep
     ChefInnerBlock.new(@context).instance_eval &block if block_given?
     self
@@ -448,7 +448,7 @@ def process_one_recipe context
     f.each_line do |line|
       # Blank lines
       next if line =~ /^\s*$/
-  
+
       # Comments
       if line =~ /^#/
         if class_opened
@@ -459,9 +459,9 @@ def process_one_recipe context
 
         next
       end
-  
+
       block_buffer << line
-  
+
       if line =~ /^end/
         context.puts "class #{context.class_name} {" unless class_opened
         class_opened = true
@@ -493,6 +493,7 @@ end
 
 def process_templates context
   Dir[File.join(context.templates_path, '*')].each do |fname|
+    next if File.directory?(fname)
     context.fname = fname
     process_one_template context
   end
@@ -518,7 +519,7 @@ end
 # MAIN -------------------
 
 # Detect/create configuration info
-cookbook_name  = File.open("#{$options[:cookbook]}/metadata.json") { |f| JSON.parse(f.read) }['name']
+cookbook_name  = File.open("#{$options[:cookbook]}/metadata.rb") { |f| f.readline }.split(' ')[1].delete('\'')
 recipes_path   = File.join($options[:cookbook], 'recipes')
 templates_path = File.join($options[:cookbook], 'templates', 'default') # TODO this only handles default
 files_path     = File.join($options[:cookbook], 'files', 'default')     # TODO this only handles default
